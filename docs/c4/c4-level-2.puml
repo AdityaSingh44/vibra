@@ -1,0 +1,35 @@
+@startuml
+' Vibra - Container Diagram (C4 Level 2) (plain PlantUML)
+
+skinparam handwritten false
+skinparam shadowing false
+
+actor "End User" as user #AliceBlue
+actor "Moderator" as moderator #LightYellow
+
+' System boundary
+package "Vibra" {
+    rectangle "Vibra Web App (React)" as spa #LightGreen
+    rectangle "Vibra API (Node.js)" as api #LightSkyBlue
+        database "MongoDB" as db #Lavender
+    rectangle "Background Workers" as queue #MistyRose
+    storage "S3-compatible Storage" as objectStore #Thistle
+}
+
+' Relationships
+user --> spa : Uses
+spa --> api : Calls over HTTPS\n(REST/GraphQL)
+api --> db : Reads/Writes
+api --> objectStore : Issues signed upload/download URLs
+api --> queue : Enqueues background jobs
+queue --> db : Reads/Writes
+moderator --> api : Manages moderation via API/UI
+
+note top
+    This Container diagram shows the main runtime containers
+    (web app, API, DB, workers, object storage). Implemented
+    with plain PlantUML primitives for broad compatibility.
+end note
+
+title "Vibra - Container Diagram (C4 Level 2)"
+@enduml

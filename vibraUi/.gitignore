@@ -1,0 +1,25 @@
+node_modules/
+
+# Vite build
+dist/
+
+# Env
+.env
+.env.local
+
+# Editor
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# npm lock
+package-lock.json
+
+# logs
+*.log
+
+# static
+uploads/

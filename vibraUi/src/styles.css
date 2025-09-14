@@ -1,0 +1,121 @@
+:root {
+    --bg: #fafafa;
+    --card: #fff;
+    --muted: #8e8e8e;
+    --accent: #0095f6;
+    --max-width: 800px;
+}
+
+* {
+    box-sizing: border-box
+}
+
+body {
+    font-family: Inter, system-ui, Arial, Helvetica, sans-serif;
+    background: var(--bg);
+    margin: 0;
+    color: #111
+}
+
+.container {
+    max-width: var(--max-width);
+    margin: 24px auto;
+    padding: 0 16px
+}
+
+.navbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0
+}
+
+.brand {
+    font-weight: 700;
+    font-size: 20px
+}
+
+.layout {
+    display: flex;
+    gap: 24px
+}
+
+.left {
+    flex: 1
+}
+
+.right {
+    width: 320px
+}
+
+.card {
+    background: var(--card);
+    border: 1px solid #e6e6e6;
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 16px
+}
+
+.compose textarea {
+    width: 100%;
+    border: 1px solid #e6e6e6;
+    border-radius: 8px;
+    padding: 8px;
+    resize: vertical
+}
+
+.post {
+    display: flex;
+    gap: 12px
+}
+
+.avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: #ddd
+}
+
+.post-body {
+    flex: 1
+}
+
+.post-meta {
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 8px
+}
+
+.post-media img {
+    max-width: 100%;
+    border-radius: 8px;
+    margin-top: 8px
+}
+
+.stories {
+    display: flex;
+    gap: 12px;
+    padding: 8px
+}
+
+.story {
+    width: 72px;
+    text-align: center
+}
+
+.story .thumb {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: #ddd;
+    margin: 0 auto
+}
+
+.button {
+    background: var(--accent);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer
+}

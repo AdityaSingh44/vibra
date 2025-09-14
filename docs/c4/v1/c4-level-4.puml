@@ -1,0 +1,56 @@
+@startuml
+' C4 Level 4 - Sequence diagrams for core flows (Signup and Create Post)
+
+actor User
+participant "Web App (React)" as Web
+participant "AuthService (API)" as Auth
+participant "UserService (API)" as UserSvc
+participant "PostService (API)" as PostSvc
+database "MongoDB" as DB
+participant "Worker" as Worker
+
+participant "StoryService (API)" as StorySvc
+participant "ReelService (API)" as ReelSvc
+
+== Signup Flow ==
+User -> Web: Open signup form
+Web -> Auth: POST /api/auth/signup {email,password,displayName}
+Auth -> DB: insert user document (passwordHash)
+Auth -> Web: 201 { userId, token }
+Web -> User: store token; redirect to profile
+
+== Create Post Flow ==
+User -> Web: Compose post + optional image
+alt has image
+  Web -> PostSvc: POST /api/media (multipart/form-data)
+  PostSvc -> DB: store media reference and return mediaUrl
+  Web -> PostSvc: POST /api/posts {content, mediaUrl}
+else no image
+  Web -> PostSvc: POST /api/posts {content}
+end
+PostSvc -> DB: insert post document
+PostSvc -> Worker: enqueue: generate notifications, moderation check
+Worker -> DB: write notifications
+Worker -> PostSvc: optional moderation callback
+PostSvc -> Web: 201 { post }
+Web -> User: show post in feed
+
+== Create Story Flow ==
+User -> Web: Record or upload story (short image/video)
+Web -> StorySvc: POST /api/stories {media (multipart), caption}
+StorySvc -> DB: insert story document (expiresAt)
+StorySvc -> Worker: enqueue story expiry/notifications
+StorySvc -> Web: 201 { story }
+Web -> User: show story in stories tray
+
+== Create Reel Flow ==
+User -> Web: Record or upload reel (short video)
+Web -> ReelSvc: POST /api/reels {media (multipart), caption}
+ReelSvc -> DB: insert reel document
+ReelSvc -> Worker: enqueue transcoding/thumbnail generation, notifications
+Worker -> ReelSvc: update reel status
+ReelSvc -> Web: 201 { reel }
+Web -> User: show reel in reels feed
+
+title "Vibra - C4 Level 4 (Sequence diagrams)"
+@enduml

@@ -1,0 +1,47 @@
+@startuml
+' C4 Level 3 - Component diagram (plain PlantUML)
+skinparam componentStyle rectangle
+
+package "Vibra - Server (Node.js)" {
+  [AuthService] as auth
+  [UserService] as usersvc
+  [PostService] as postsvc
+  [StoryService] as storysvc
+  [ReelService] as reelsvc
+  [CommunityService] as commsvc
+  [ModerationService] as modsvc
+  [NotificationService] as notifsvc
+  [Worker / Queue] as worker
+}
+
+database "MongoDB" as db
+
+actor "Web App (React)" as web
+
+web --> auth : /api/auth/*
+web --> usersvc : /api/users/*
+web --> postsvc : /api/posts/*
+web --> commsvc : /api/communities/*
+web --> modsvc : /api/moderation/*
+
+auth --> db : users collection
+usersvc --> db : users collection
+postsvc --> db : posts collection
+commsvc --> db : communities collection
+modsvc --> db : reports collection
+notifsvc --> db : notifications collection
+
+postsvc --> worker : enqueue post processing (e.g., notifications, moderation)
+postsvc --> db : store media reference (if using server-side storage)
+
+storysvc --> db : stories collection
+reelsvc --> db : reels collection
+storysvc --> worker : enqueue story processing (notifications, expiry)
+reelsvc --> worker : enqueue reel processing (transcoding, notifications)
+worker --> notifsvc : create notifications
+worker --> modsvc : send moderation events
+
+note "Components are thin services within the API layer; MongoDB stores core collections; S3 stores media." as N
+
+title "Vibra - C4 Level 3 (Component diagram)"
+@enduml

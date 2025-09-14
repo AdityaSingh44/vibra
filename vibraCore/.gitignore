@@ -1,0 +1,28 @@
+node_modules/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# dotenv
+.env
+.env.local
+.env.*.local
+
+
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Build
+dist/
+coverage/
+
+# npm lock
+package-lock.json

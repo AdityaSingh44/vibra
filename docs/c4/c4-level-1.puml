@@ -1,0 +1,35 @@
+@startuml
+' Vibra - System Context (C4 Level 1) (plain PlantUML)
+
+skinparam handwritten false
+skinparam shadowing false
+
+' Actors
+actor "End User" as user #AliceBlue
+actor "Moderator" as moderator #LightYellow
+
+' Systems / Components
+rectangle "Vibra Web App (React)" as spa #LightGreen
+rectangle "Vibra API (Node.js)" as api #LightSkyBlue
+database "MongoDB" as db #Lavender
+storage "S3-compatible Storage" as s3 #Thistle
+rectangle "External Email Service / OAuth Providers" as externalAuth #Wheat
+
+' Relationships
+user --> spa : Uses
+user --> api : Uses (via SPA)\nREST/GraphQL over HTTPS
+spa --> api : Requests data from
+api --> db : Reads from and writes to
+api --> s3 : Reads/Writes media via signed URLs
+moderator --> api : Uses moderation UI via
+api --> externalAuth : Sends verification emails / delegates OAuth
+
+note top
+	This diagram is a System Context (C4 Level 1)
+	Implemented using plain PlantUML primitives so it
+	renders without external C4-PlantUML includes.
+end note
+
+title "Vibra - System Context (C4 Level 1)"
+
+@enduml
