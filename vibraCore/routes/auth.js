@@ -3,6 +3,9 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 const mongoose = require('mongoose');
 
 // helper to get user by id (mock or db)
@@ -106,8 +109,88 @@ router.get('/me', async (req, res) => {
         const user = await findUserById(data.userId);
         if (!user) return res.status(404).json({ error: 'Not found' });
         // only expose public fields
-        const out = { _id: user._id, displayName: user.displayName, avatarUrl: user.avatarUrl, username: user.username };
+        const out = { _id: user._id, displayName: user.displayName, avatarUrl: user.avatarUrl, username: user.username, bio: user.bio || '', stories: user.stories || [] };
         res.json(out);
     } catch (err) { console.error(err); res.status(401).json({ error: 'Unauthorized' }); }
+});
+
+// storage for avatar and story uploads
+const uploadDir = path.join(__dirname, '..', process.env.UPLOAD_DIR || 'uploads');
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+const storage = multer.diskStorage({ destination: (req, file, cb) => cb(null, uploadDir), filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname) });
+const upload = multer({ storage });
+
+// Middleware to validate JWT token (re-used)
+function authMiddleware(req, res, next) {
+    const auth = req.headers.authorization;
+    if (!auth) return res.status(401).json({ error: 'Unauthorized' });
+    const token = auth.replace('Bearer ', '');
+    try {
+        const data = jwt.verify(token, process.env.JWT_SECRET || 'devsecret');
+        req.userId = data.userId;
+        next();
+    } catch (e) { return res.status(401).json({ error: 'Unauthorized' }); }
+}
+
+// PATCH /api/auth/me - update profile (bio, displayName)
+router.patch('/me', authMiddleware, async (req, res) => {
+    try {
+        const { bio, displayName } = req.body;
+        if (global.MOCK_DB) {
+            const u = global.__mockUsers.find(x => x._id == req.userId);
+            if (!u) return res.status(404).json({ error: 'Not found' });
+            if (typeof bio !== 'undefined') u.bio = bio;
+            if (typeof displayName !== 'undefined') u.displayName = displayName;
+            return res.json(u);
+        }
+        const user = await User.findById(req.userId);
+        if (!user) return res.status(404).json({ error: 'Not found' });
+        if (typeof bio !== 'undefined') user.bio = bio;
+        if (typeof displayName !== 'undefined') user.displayName = displayName;
+        await user.save();
+        res.json(user);
+    } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+});
+
+// POST /api/auth/avatar - upload avatar image
+router.post('/avatar', authMiddleware, upload.single('file'), async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ error: 'No file' });
+        const url = `/uploads/${req.file.filename}`;
+        if (global.MOCK_DB) {
+            const u = global.__mockUsers.find(x => x._id == req.userId);
+            if (!u) return res.status(404).json({ error: 'Not found' });
+            u.avatarUrl = url;
+            return res.json({ url });
+        }
+        const user = await User.findById(req.userId);
+        if (!user) return res.status(404).json({ error: 'Not found' });
+        user.avatarUrl = url;
+        await user.save();
+        res.json({ url });
+    } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+});
+
+// POST /api/auth/story - upload a story (image)
+router.post('/story', authMiddleware, upload.single('file'), async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ error: 'No file' });
+        const url = `/uploads/${req.file.filename}`;
+        if (global.MOCK_DB) {
+            const u = global.__mockUsers.find(x => x._id == req.userId);
+            if (!u) return res.status(404).json({ error: 'Not found' });
+            u.stories = u.stories || [];
+            u.stories.unshift({ url, createdAt: new Date() });
+            return res.json({ url });
+        }
+        const user = await User.findById(req.userId);
+        if (!user) return res.status(404).json({ error: 'Not found' });
+        user.stories = user.stories || [];
+        user.stories.unshift({ url });
+        // optionally keep only recent 20
+        if (user.stories.length > 20) user.stories = user.stories.slice(0, 20);
+        await user.save();
+        res.json({ url });
+    } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
 

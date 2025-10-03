@@ -10,7 +10,7 @@ npm-debug.log*
 .env.local
 .env.*.local
 
-
+uploads/
 
 # OS files
 .DS_Store

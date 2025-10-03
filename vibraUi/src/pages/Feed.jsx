@@ -13,12 +13,18 @@ export default function Feed() {
         try { const r = await axios.get('http://localhost:4000/api/posts'); setPosts(r.data) } catch (err) { console.error(err) }
     }
 
+    const fetchStories = async () => {
+        try { const r = await axios.get('http://localhost:4000/api/posts/stories'); setStories(r.data) } catch (err) { console.error(err) }
+    }
+
     useEffect(() => { fetchPosts() }, [])
+
+    useEffect(() => { fetchStories() }, [])
 
     return (
         <div>
             <div className="container">
-                <StoriesTray stories={stories} />
+                <StoriesTray stories={stories} onStoriesUpdated={fetchStories} />
                 <div className="layout">
                     <div className="left">
                         <Compose onPosted={fetchPosts} />

@@ -32,9 +32,22 @@ export default function PostCard({ post, onDeleted, allowDelete = false, allowEd
         } catch (err) { console.error(err) }
     }
 
+    const backend = 'http://localhost:4000';
+    const full = (u) => {
+        if (!u) return u;
+        // already a full http url
+        if (u.startsWith('http://') || u.startsWith('https://')) return encodeURI(u);
+        // relative upload path
+        if (u.startsWith('/uploads')) return backend + encodeURI(u);
+        // windows absolute path or other local path - extract filename
+        const parts = u.split(/[/\\]/);
+        const name = parts[parts.length - 1];
+        return backend + '/uploads/' + encodeURIComponent(name);
+    };
+
     return (
         <div className="card post">
-            <div className="avatar" style={{ backgroundImage: post.author?.avatarUrl ? `url(${post.author.avatarUrl})` : undefined, backgroundSize: 'cover' }} />
+            <div className="avatar" style={{ backgroundImage: post.author?.avatarUrl ? `url(${full(post.author.avatarUrl)})` : undefined, backgroundSize: 'cover' }} />
             <div className="post-body">
                 <div className="post-meta"><strong>{post.author?.displayName || post.authorId}</strong> · <span style={{ color: '#777' }}>{new Date(post.createdAt).toLocaleString()}</span></div>
                 <div>{editing ? (
@@ -46,7 +59,7 @@ export default function PostCard({ post, onDeleted, allowDelete = false, allowEd
                         </div>
                     </div>
                 ) : post.content}</div>
-                {post.media && post.media.length > 0 && <div className="post-media"><img src={post.media[0].url} alt="media" /></div>}
+                {post.media && post.media.length > 0 && <div className="post-media"><img src={full(post.media[0].url)} alt="media" /></div>}
                 {allowEdit && meId && (meId === String(post.authorId) || meId === String(post.author?._id)) && !editing && <div style={{ textAlign: 'right', marginTop: 8 }}><button className="button" onClick={() => setEditing(true)}>Edit</button></div>}
                 {allowDelete && meId && (meId === String(post.authorId) || meId === String(post.author?._id)) && <div style={{ textAlign: 'right', marginTop: 8 }}><button className="button danger" onClick={del}>Delete</button></div>}
             </div>

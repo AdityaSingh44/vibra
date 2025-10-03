@@ -113,6 +113,27 @@ router.get('/:id', async (req, res) => {
     } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
 
+// GET /api/posts/stories - list recent stories across users
+router.get('/stories', async (req, res) => {
+    try {
+        if (global.MOCK_DB) {
+            const users = global.__mockUsers || [];
+            const stories = [];
+            users.forEach(u => {
+                (u.stories || []).forEach(s => stories.push({ author: { displayName: u.displayName, avatarUrl: u.avatarUrl, _id: u._id }, url: s.url, createdAt: s.createdAt }));
+            });
+            stories.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            return res.json(stories.slice(0, 50));
+        }
+        // for DB-backed users, fetch users with non-empty stories
+        const users = await User.find({ 'stories.0': { $exists: true } }).select('displayName avatarUrl stories').lean();
+        const stories = [];
+        users.forEach(u => { (u.stories || []).forEach(s => stories.push({ author: { displayName: u.displayName, avatarUrl: u.avatarUrl, _id: u._id }, url: s.url, createdAt: s.createdAt })); });
+        stories.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        res.json(stories.slice(0, 50));
+    } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+});
+
 // GET /api/posts - list recent posts with author info
 router.get('/', async (req, res) => {
     try {
