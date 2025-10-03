@@ -3,6 +3,7 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const mongoose = require('mongoose');
 
 // helper to get user by id (mock or db)
 async function findUserById(id) {
@@ -10,7 +11,14 @@ async function findUserById(id) {
         global.__mockUsers = global.__mockUsers || [];
         return global.__mockUsers.find(u => u._id == id) || null;
     }
-    return await User.findById(id).lean();
+    try {
+        // If the id is not a valid ObjectId, avoid calling findById to prevent Mongoose CastError
+        if (!mongoose.isValidObjectId(id)) return null;
+        return await User.findById(id).lean();
+    } catch (err) {
+        console.error('findUserById error', err && err.message ? err.message : err);
+        return null;
+    }
 }
 
 router.post('/signup', async (req, res) => {

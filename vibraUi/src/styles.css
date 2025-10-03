@@ -3,7 +3,10 @@
     --card: #fff;
     --muted: #8e8e8e;
     --accent: #0095f6;
-    --max-width: 800px;
+    --accent-2: #ff006e;
+    --surface: #ffffff;
+    --muted-2: #a0a0a0;
+    --max-width: 1000px;
 }
 
 * {
@@ -54,6 +57,100 @@ body {
     border-radius: 12px;
     padding: 12px;
     margin-bottom: 16px
+}
+
+/* Auth page styles */
+.auth-page {
+    min-height: calc(100vh - 48px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 16px;
+}
+
+.auth-card {
+    width: 420px;
+    background: var(--surface);
+    border-radius: 16px;
+    box-shadow: 0 6px 24px rgba(20, 20, 20, 0.06);
+    padding: 28px;
+    text-align: center;
+}
+
+.auth-brand .logo {
+    font-weight: 800;
+    font-size: 36px;
+    letter-spacing: -1px;
+    margin-bottom: 6px;
+}
+
+.auth-brand .auth-title {
+    color: var(--muted-2);
+    margin-bottom: 18px;
+}
+
+.auth-form {
+    text-align: left
+}
+
+.input-group {
+    margin-bottom: 12px;
+    display: block
+}
+
+.input-label {
+    display: block;
+    font-size: 13px;
+    color: var(--muted-2);
+    margin-bottom: 6px
+}
+
+.input {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid #eaeaea;
+    outline: none;
+    font-size: 14px
+}
+
+.input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 4px rgba(0, 149, 246, 0.06)
+}
+
+.auth-footer {
+    margin-top: 12px;
+    color: var(--muted-2);
+    font-size: 14px
+}
+
+.button {
+    background: var(--accent);
+    color: white;
+    padding: 9px 14px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer
+}
+
+.button.danger {
+    background: #e53935
+}
+
+@media (max-width: 540px) {
+    .auth-card {
+        width: 100%;
+        padding: 20px
+    }
+
+    .container {
+        margin: 12px
+    }
+
+    .right {
+        display: none
+    }
 }
 
 .compose textarea {
