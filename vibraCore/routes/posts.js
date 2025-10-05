@@ -116,6 +116,111 @@ router.patch('/:id', authMiddleware, async (req, res) => {
     } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
 
+// POST /api/posts/:id/like - toggle like by current user
+router.post('/:id/like', authMiddleware, async (req, res) => {
+    try {
+        const id = req.params.id;
+        if (global.MOCK_DB) {
+            const p = global.__mockPosts.find(x => x._id === id);
+            if (!p) return res.status(404).json({ error: 'Not found' });
+            p.likes = p.likes || [];
+            const idx = p.likes.indexOf(req.userId);
+            if (idx === -1) p.likes.push(req.userId); else p.likes.splice(idx, 1);
+            return res.json({ likes: p.likes });
+        }
+        if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: 'Invalid id' });
+        const post = await Post.findById(id);
+        if (!post) return res.status(404).json({ error: 'Not found' });
+        post.likes = post.likes || [];
+        // ensure the token's userId is a valid ObjectId before casting
+        if (!req.userId || !mongoose.Types.ObjectId.isValid(String(req.userId))) return res.status(401).json({ error: 'Unauthorized' });
+        const meId = String(req.userId);
+        // likes may be stored as ObjectId instances; compare by string
+        const found = post.likes.find(l => String(l) === meId);
+        if (found) post.likes = post.likes.filter(l => String(l) !== meId); else post.likes.push(new mongoose.Types.ObjectId(meId));
+        await post.save();
+        res.json({ likes: post.likes });
+    } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+});
+
+// POST /api/posts/:id/comment - add a comment
+router.post('/:id/comment', authMiddleware, async (req, res) => {
+    try {
+        const id = req.params.id;
+        const { text } = req.body;
+        if (!text || text.trim() === '') return res.status(400).json({ error: 'Empty comment' });
+        if (global.MOCK_DB) {
+            const p = global.__mockPosts.find(x => x._id === id);
+            if (!p) return res.status(404).json({ error: 'Not found' });
+            p.comments = p.comments || [];
+            const c = { authorId: req.userId, text, createdAt: new Date() };
+            p.comments.push(c);
+            // attach displayName/avatar from mock users for convenience
+            const u = (global.__mockUsers || []).find(x => x._id == req.userId);
+            const reply = { ...c, displayName: u ? u.displayName : undefined, avatarUrl: u ? u.avatarUrl : undefined };
+            return res.json({ comment: reply });
+        }
+        if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: 'Invalid id' });
+        const post = await Post.findById(id);
+        if (!post) return res.status(404).json({ error: 'Not found' });
+        // validate user id
+        if (!req.userId || !mongoose.Types.ObjectId.isValid(String(req.userId))) return res.status(401).json({ error: 'Unauthorized' });
+        post.comments = post.comments || [];
+        post.comments.push({ authorId: new mongoose.Types.ObjectId(String(req.userId)), text, createdAt: new Date() });
+        await post.save();
+        const added = post.comments[post.comments.length - 1];
+        // fetch author info to attach displayName/avatar
+        try {
+            const user = await User.findById(String(req.userId)).select('displayName avatarUrl username').lean();
+            const addedObj = (added && added.toObject) ? added.toObject() : added;
+            const reply = { ...addedObj, displayName: user ? user.displayName : undefined, avatarUrl: user ? user.avatarUrl : undefined };
+            return res.json({ comment: reply });
+        } catch (e) {
+            const addedObj = (added && added.toObject) ? added.toObject() : added;
+            return res.json({ comment: addedObj });
+        }
+    } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+});
+
+// POST /api/posts/:id/share - increment share count for analytics
+router.post('/:id/share', authMiddleware, async (req, res) => {
+    try {
+        const id = req.params.id;
+        if (global.MOCK_DB) {
+            const p = global.__mockPosts.find(x => x._id === id);
+            if (!p) return res.status(404).json({ error: 'Not found' });
+            p.shares = (p.shares || 0) + 1;
+            return res.json({ shares: p.shares });
+        }
+        if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: 'Invalid id' });
+        const post = await Post.findById(id);
+        if (!post) return res.status(404).json({ error: 'Not found' });
+        post.shares = (post.shares || 0) + 1;
+        await post.save();
+        res.json({ shares: post.shares });
+    } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+});
+
+// GET /api/posts/:id/likes - list users who liked the post (basic info)
+router.get('/:id/likes', async (req, res) => {
+    try {
+        const id = req.params.id;
+        if (global.MOCK_DB) {
+            const p = global.__mockPosts.find(x => x._id === id);
+            if (!p) return res.status(404).json({ error: 'Not found' });
+            const users = (p.likes || []).map(uid => {
+                const u = global.__mockUsers.find(x => x._id == uid);
+                return u ? { _id: u._id, displayName: u.displayName, avatarUrl: u.avatarUrl } : { _id: uid };
+            });
+            return res.json({ users });
+        }
+        if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: 'Invalid id' });
+        const post = await Post.findById(id).populate('likes', 'displayName avatarUrl username').lean();
+        if (!post) return res.status(404).json({ error: 'Not found' });
+        res.json({ users: (post.likes || []).map(u => ({ _id: u._id, displayName: u.displayName, avatarUrl: u.avatarUrl })) });
+    } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+});
+
 // Accept single file under 'file' OR multiple files under 'files[]' or 'files'
 router.post('/media', authMiddleware, upload.any(), async (req, res) => {
     try {
@@ -163,6 +268,33 @@ router.get('/:id', async (req, res) => {
         const post = await Post.findById(id);
         if (!post) return res.status(404).json({ error: 'Not found' });
         res.json(post);
+    } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+});
+
+// GET /api/posts/:id/comments - list comments for a post (most recent last)
+router.get('/:id/comments', async (req, res) => {
+    try {
+        const id = req.params.id;
+        if (global.MOCK_DB) {
+            const p = global.__mockPosts.find(x => x._id === id);
+            if (!p) return res.status(404).json({ error: 'Not found' });
+            // attach displayName/avatar for mock users
+            const comments = (p.comments || []).map(c => {
+                const u = (global.__mockUsers || []).find(x => x._id == c.authorId);
+                return { ...c, displayName: u ? u.displayName : undefined, avatarUrl: u ? u.avatarUrl : undefined };
+            });
+            return res.json({ comments });
+        }
+        if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: 'Invalid id' });
+        const post = await Post.findById(id).lean();
+        if (!post) return res.status(404).json({ error: 'Not found' });
+        const comments = post.comments || [];
+        // resolve author info for comment authorIds
+        const authorIds = [...new Set(comments.map(c => String(c.authorId)))].filter(x => !!x);
+        const users = authorIds.length ? await User.find({ _id: { $in: authorIds } }).select('displayName avatarUrl username').lean() : [];
+        const userMap = Object.fromEntries((users || []).map(u => [String(u._id), u]));
+        const out = comments.map(c => ({ ...c, displayName: userMap[String(c.authorId)] ? userMap[String(c.authorId)].displayName : undefined, avatarUrl: userMap[String(c.authorId)] ? userMap[String(c.authorId)].avatarUrl : undefined }));
+        res.json({ comments: out });
     } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
 
