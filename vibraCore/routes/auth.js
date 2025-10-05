@@ -312,3 +312,16 @@ router.delete('/story/:id', authMiddleware, async (req, res) => {
     } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
 
+// GET /api/auth/users - list users (public, minimal fields)
+router.get('/users', async (req, res) => {
+    try {
+        if (global.MOCK_DB) {
+            global.__mockUsers = global.__mockUsers || [];
+            const users = global.__mockUsers.map(u => ({ _id: u._id, displayName: u.displayName, avatarUrl: u.avatarUrl, username: u.username }));
+            return res.json({ users });
+        }
+        const users = await User.find().select('displayName avatarUrl username').lean();
+        res.json({ users });
+    } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+});
+

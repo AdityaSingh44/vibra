@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import meStore, { loadMe } from '../stores/meStore'
+import MessagesButton from './MessagesButton'
+import axios from 'axios'
 import { uploadAvatar } from '../api'
 
 export default function Navbar() {
@@ -14,6 +16,14 @@ export default function Navbar() {
     }, [])
 
     const backend = 'http://localhost:4000'
+    const TARU_BASE = import.meta.env.VITE_TARU_BASE || 'http://localhost:3001'
+    const [taruHealthy, setTaruHealthy] = React.useState(false)
+
+    React.useEffect(() => {
+        let mounted = true
+        axios.get(`${TARU_BASE}/health`).then(r => { if (mounted && r.data && r.data.ok) setTaruHealthy(true) }).catch(() => { })
+        return () => { mounted = false }
+    }, [])
     const full = (u) => {
         if (!u) return u;
         if (u.startsWith('http://') || u.startsWith('https://')) return encodeURI(u);
@@ -50,6 +60,7 @@ export default function Navbar() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 {me ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }} onClick={() => navigate('/profile')}>
+                        {taruHealthy && <div style={{ marginRight: 8 }}><MessagesButton /></div>}
                         <label style={{ position: 'relative', display: 'inline-block' }}>
                             <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => onChangeAvatar(e.target.files && e.target.files[0])} />
                             <div className="avatar" style={{ width: 40, height: 40, borderRadius: 20, backgroundImage: me.avatarUrl ? `url(${full(me.avatarUrl)})` : undefined, backgroundSize: 'cover' }} />
