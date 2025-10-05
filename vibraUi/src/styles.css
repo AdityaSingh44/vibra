@@ -1,11 +1,15 @@
 :root {
+    /* Palette inspired by Instagram: soft neutrals + warm gradient accent */
     --bg: #fafafa;
-    --card: #fff;
-    --muted: #8e8e8e;
-    --accent: #0095f6;
-    --accent-2: #ff006e;
+    --page-bg: linear-gradient(180deg, #ffffff 0%, #fbf7ff 100%);
+    --card: #ffffff;
+    --muted: #6b6b6b;
+    --accent: linear-gradient(45deg, #feda75, #fa7e1e, #d62976, #962fbf, #4f5bd5);
+    --accent-solid: #ff6a88;
+    /* fallback solid color */
+    --muted-2: #9aa0a6;
     --surface: #ffffff;
-    --muted-2: #a0a0a0;
+    --shadow: 0 6px 22px rgba(18, 18, 18, 0.08);
     --max-width: 1000px;
 }
 
@@ -14,28 +18,47 @@
 }
 
 body {
-    font-family: Inter, system-ui, Arial, Helvetica, sans-serif;
-    background: var(--bg);
+    font-family: Inter, 'Montserrat', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+    background: var(--page-bg);
     margin: 0;
-    color: #111
+    color: #111;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
 .container {
     max-width: var(--max-width);
-    margin: 24px auto;
-    padding: 0 16px
+    margin: 28px auto;
+    padding: 0 18px;
 }
 
 .navbar {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 0
+    padding: 12px 0;
 }
 
 .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.brand .logo {
+    font-family: 'Montserrat', 'Inter', sans-serif;
     font-weight: 700;
-    font-size: 20px
+    font-size: 22px;
+    letter-spacing: -0.5px;
+    background: var(--accent);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+.brand .tagline {
+    color: var(--muted-2);
+    font-size: 12px;
 }
 
 .layout {
@@ -53,10 +76,45 @@ body {
 
 .card {
     background: var(--card);
-    border: 1px solid #e6e6e6;
-    border-radius: 12px;
-    padding: 12px;
-    margin-bottom: 16px
+    border-radius: 14px;
+    padding: 14px;
+    margin-bottom: 18px;
+    box-shadow: var(--shadow);
+    border: 1px solid rgba(16, 16, 16, 0.04);
+}
+
+.profile-header {
+    padding: 20px;
+}
+
+.avatar.large {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: linear-gradient(180deg, #eee, #ddd);
+    border: 4px solid white;
+    box-shadow: 0 8px 28px rgba(16, 16, 16, 0.08);
+    overflow: hidden;
+}
+
+.avatar-change {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+}
+
+.avatar-change .small-button {
+    background: var(--accent-solid);
+    color: white;
+    padding: 6px 10px;
+    border-radius: 10px;
+    margin-top: 8px;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.small-button:hover {
+    opacity: .95
 }
 
 /* Auth page styles */
@@ -72,7 +130,7 @@ body {
     width: 420px;
     background: var(--surface);
     border-radius: 16px;
-    box-shadow: 0 6px 24px rgba(20, 20, 20, 0.06);
+    box-shadow: 0 8px 36px rgba(20, 20, 20, 0.06);
     padding: 28px;
     text-align: center;
 }
@@ -107,11 +165,12 @@ body {
 
 .input {
     width: 100%;
-    padding: 10px 12px;
-    border-radius: 10px;
-    border: 1px solid #eaeaea;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px solid #f0f0f0;
     outline: none;
-    font-size: 14px
+    font-size: 14px;
+    background: #fff;
 }
 
 .input:focus {
@@ -126,12 +185,13 @@ body {
 }
 
 .button {
-    background: var(--accent);
+    background: var(--accent-solid);
     color: white;
-    padding: 9px 14px;
-    border-radius: 8px;
+    padding: 10px 14px;
+    border-radius: 10px;
     border: none;
-    cursor: pointer
+    cursor: pointer;
+    font-weight: 600;
 }
 
 .button.danger {
@@ -155,22 +215,25 @@ body {
 
 .compose textarea {
     width: 100%;
-    border: 1px solid #e6e6e6;
-    border-radius: 8px;
-    padding: 8px;
-    resize: vertical
+    border: 1px solid #f0f0f0;
+    border-radius: 10px;
+    padding: 10px;
+    resize: vertical;
+    background: #fff;
 }
 
 .post {
     display: flex;
-    gap: 12px
+    gap: 14px;
 }
 
 .avatar {
-    width: 48px;
-    height: 48px;
+    width: 52px;
+    height: 52px;
     border-radius: 50%;
-    background: #ddd
+    background: #eee;
+    overflow: hidden;
+    box-shadow: 0 6px 18px rgba(16, 16, 16, 0.06);
 }
 
 .post-body {
@@ -185,34 +248,94 @@ body {
 
 .post-media img {
     max-width: 100%;
-    border-radius: 8px;
-    margin-top: 8px
+    border-radius: 12px;
+    margin-top: 10px;
+    display: block;
 }
 
 .stories {
     display: flex;
     gap: 12px;
-    padding: 8px
+    padding: 10px;
+    align-items: center;
 }
 
 .story {
-    width: 72px;
-    text-align: center
+    width: 84px;
+    text-align: center;
 }
 
 .story .thumb {
-    width: 64px;
-    height: 64px;
+    width: 72px;
+    height: 72px;
     border-radius: 50%;
-    background: #ddd;
-    margin: 0 auto
+    background: radial-gradient(circle at 30% 10%, #fff8, #fff0), #eee;
+    margin: 0 auto;
+    display: block;
+    box-shadow: 0 6px 20px rgba(16, 16, 16, 0.06);
+    border: 3px solid transparent;
+}
+
+.story.has-image .thumb {
+    border-image: linear-gradient(45deg, #feda75, #fa7e1e, #d62976, #962fbf, #4f5bd5) 1;
 }
 
 .button {
-    background: var(--accent);
+    background: var(--accent-solid);
     color: white;
     padding: 8px 12px;
-    border-radius: 8px;
+    border-radius: 10px;
     border: none;
-    cursor: pointer
+    cursor: pointer;
+}
+
+/* small helpers */
+.muted {
+    color: var(--muted-2);
+    font-size: 13px
+}
+
+.card h3 {
+    margin: 0 0 8px 0
+}
+
+.center {
+    text-align: center
+}
+
+/* Profile grid similar to Instagram */
+.profile-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+}
+
+.profile-tile {
+    background: #fff;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    border: 1px solid rgba(0, 0, 0, 0.04);
+    display: flex;
+    flex-direction: column;
+}
+
+.tile-media {
+    width: 100%;
+    padding-top: 100%;
+    /* 1:1 aspect */
+    background-size: cover;
+    background-position: center;
+}
+
+.tile-caption {
+    padding: 8px 10px;
+    font-size: 14px;
+    color: #222;
+    min-height: 48px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }

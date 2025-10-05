@@ -3,6 +3,7 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const Post = require('../models/Post');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -108,9 +109,79 @@ router.get('/me', async (req, res) => {
         const data = jwt.verify(token, process.env.JWT_SECRET || 'devsecret');
         const user = await findUserById(data.userId);
         if (!user) return res.status(404).json({ error: 'Not found' });
+        // compute counts (posts, followers, following)
+        let postsCount = 0;
+        if (global.MOCK_DB) {
+            global.__mockPosts = global.__mockPosts || [];
+            postsCount = global.__mockPosts.filter(p => String(p.authorId) === String(user._id) && !p.deleted).length;
+        } else {
+            postsCount = await Post.countDocuments({ authorId: user._id, deleted: false });
+        }
+        const followersCount = (user.followers && user.followers.length) || 0;
+        const followingCount = (user.following && user.following.length) || 0;
         // only expose public fields
-        const out = { _id: user._id, displayName: user.displayName, avatarUrl: user.avatarUrl, username: user.username, bio: user.bio || '', stories: user.stories || [] };
+        const out = { _id: user._id, displayName: user.displayName, avatarUrl: user.avatarUrl, username: user.username, bio: user.bio || '', stories: user.stories || [], postsCount, followersCount, followingCount };
         res.json(out);
+    } catch (err) { console.error(err); res.status(401).json({ error: 'Unauthorized' }); }
+});
+
+// POST /api/auth/follow/:id - follow a user
+router.post('/follow/:id', async (req, res) => {
+    const auth = req.headers.authorization;
+    if (!auth) return res.status(401).json({ error: 'Unauthorized' });
+    const token = auth.replace('Bearer ', '');
+    try {
+        const data = jwt.verify(token, process.env.JWT_SECRET || 'devsecret');
+        const meId = data.userId;
+        const otherId = req.params.id;
+        if (global.MOCK_DB) {
+            const me = global.__mockUsers.find(u => u._id == meId);
+            const other = global.__mockUsers.find(u => u._id == otherId);
+            if (!me || !other) return res.status(404).json({ error: 'Not found' });
+            other.followers = other.followers || [];
+            me.following = me.following || [];
+            if (!other.followers.includes(meId)) other.followers.push(meId);
+            if (!me.following.includes(otherId)) me.following.push(otherId);
+            return res.json({ ok: true });
+        }
+        const me = await User.findById(meId);
+        const other = await User.findById(otherId);
+        if (!me || !other) return res.status(404).json({ error: 'Not found' });
+        other.followers = other.followers || [];
+        me.following = me.following || [];
+        if (!other.followers.includes(me._id)) other.followers.push(me._id);
+        if (!me.following.includes(other._id)) me.following.push(other._id);
+        await other.save();
+        await me.save();
+        res.json({ ok: true });
+    } catch (err) { console.error(err); res.status(401).json({ error: 'Unauthorized' }); }
+});
+
+// POST /api/auth/unfollow/:id - unfollow a user
+router.post('/unfollow/:id', async (req, res) => {
+    const auth = req.headers.authorization;
+    if (!auth) return res.status(401).json({ error: 'Unauthorized' });
+    const token = auth.replace('Bearer ', '');
+    try {
+        const data = jwt.verify(token, process.env.JWT_SECRET || 'devsecret');
+        const meId = data.userId;
+        const otherId = req.params.id;
+        if (global.MOCK_DB) {
+            const me = global.__mockUsers.find(u => u._id == meId);
+            const other = global.__mockUsers.find(u => u._id == otherId);
+            if (!me || !other) return res.status(404).json({ error: 'Not found' });
+            other.followers = (other.followers || []).filter(x => x != meId);
+            me.following = (me.following || []).filter(x => x != otherId);
+            return res.json({ ok: true });
+        }
+        const me = await User.findById(meId);
+        const other = await User.findById(otherId);
+        if (!me || !other) return res.status(404).json({ error: 'Not found' });
+        other.followers = (other.followers || []).filter(x => x.toString() !== me._id.toString());
+        me.following = (me.following || []).filter(x => x.toString() !== other._id.toString());
+        await other.save();
+        await me.save();
+        res.json({ ok: true });
     } catch (err) { console.error(err); res.status(401).json({ error: 'Unauthorized' }); }
 });
 
@@ -180,17 +251,64 @@ router.post('/story', authMiddleware, upload.single('file'), async (req, res) =>
             const u = global.__mockUsers.find(x => x._id == req.userId);
             if (!u) return res.status(404).json({ error: 'Not found' });
             u.stories = u.stories || [];
-            u.stories.unshift({ url, createdAt: new Date() });
-            return res.json({ url });
+            const story = { url, createdAt: new Date() };
+            u.stories.unshift(story);
+            // return the created story with author info for immediate client display
+            return res.json({ story: { author: { displayName: u.displayName, avatarUrl: u.avatarUrl, _id: u._id }, url: story.url, createdAt: story.createdAt } });
         }
         const user = await User.findById(req.userId);
         if (!user) return res.status(404).json({ error: 'Not found' });
         user.stories = user.stories || [];
-        user.stories.unshift({ url });
+        const story = { url, createdAt: new Date() };
+        user.stories.unshift(story);
         // optionally keep only recent 20
         if (user.stories.length > 20) user.stories = user.stories.slice(0, 20);
         await user.save();
-        res.json({ url });
+        // return the created story with author info for immediate client display
+        res.json({ story: { author: { displayName: user.displayName, avatarUrl: user.avatarUrl, _id: user._id }, url: story.url, createdAt: story.createdAt } });
+    } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+});
+
+// DELETE /api/auth/story/:id - delete a story owned by the authenticated user
+// :id may be a timestamp (ms since epoch) or an ISO date string or the story url
+router.delete('/story/:id', authMiddleware, async (req, res) => {
+    try {
+        const ident = req.params.id;
+        if (global.MOCK_DB) {
+            const u = global.__mockUsers.find(x => x._id == req.userId);
+            if (!u) return res.status(404).json({ error: 'Not found' });
+            u.stories = (u.stories || []).filter(s => {
+                try {
+                    // match by url
+                    if (s.url === ident) return false;
+                    // match by numeric timestamp (ms)
+                    const asNum = Number(ident);
+                    if (!Number.isNaN(asNum)) {
+                        return Number(new Date(s.createdAt).getTime()) !== asNum;
+                    }
+                    // match by ISO string
+                    if (String(s.createdAt) === ident) return false;
+                    return true;
+                } catch (e) { return true; }
+            });
+            return res.json({ ok: true });
+        }
+
+        const user = await User.findById(req.userId);
+        if (!user) return res.status(404).json({ error: 'Not found' });
+        user.stories = (user.stories || []).filter(s => {
+            try {
+                if (s.url === ident) return false;
+                const asNum = Number(ident);
+                if (!Number.isNaN(asNum)) {
+                    return Number(new Date(s.createdAt).getTime()) !== asNum;
+                }
+                if (String(s.createdAt) === ident) return false;
+                return true;
+            } catch (e) { return true; }
+        });
+        await user.save();
+        res.json({ ok: true });
     } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
 

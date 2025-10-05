@@ -6,6 +6,7 @@ const fs = require('fs');
 const jwt = require('jsonwebtoken');
 const Post = require('../models/Post');
 const User = require('../models/User');
+const mongoose = require('mongoose');
 
 const uploadDir = path.join(__dirname, '..', process.env.UPLOAD_DIR || 'uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
@@ -22,22 +23,35 @@ function authMiddleware(req, res, next) {
     const token = auth.replace('Bearer ', '');
     try {
         const data = jwt.verify(token, process.env.JWT_SECRET || 'devsecret');
+        // If the app is running with a real MongoDB (not MOCK_DB), ensure the token's userId
+        // is a valid MongoDB ObjectId; otherwise we may try to write an invalid authorId
+        // into the Post model which will throw a CastError. When MOCK_DB is enabled we
+        // allow legacy / generated non-ObjectId ids.
+        if (!global.MOCK_DB && mongoose.connection && mongoose.connection.readyState === 1) {
+            if (!data || !data.userId || !mongoose.Types.ObjectId.isValid(String(data.userId))) {
+                return res.status(401).json({ error: 'Unauthorized' });
+            }
+        }
         req.userId = data.userId;
         next();
     } catch (e) { return res.status(401).json({ error: 'Unauthorized' }); }
 }
 
 router.post('/', authMiddleware, async (req, res) => {
-    const { content, mediaUrl } = req.body;
+    const { content, mediaUrl, mediaUrls } = req.body;
+    // normalize media into array of { url }
+    const mediaArray = [];
+    if (mediaUrl) mediaArray.push({ url: mediaUrl });
+    if (Array.isArray(mediaUrls)) mediaUrls.forEach(u => { if (u) mediaArray.push({ url: u }); });
     // validate: must have content or media
-    if ((!content || content.trim() === '') && !mediaUrl) return res.status(400).json({ error: 'Empty post not allowed' });
+    if ((!content || content.trim() === '') && mediaArray.length === 0) return res.status(400).json({ error: 'Empty post not allowed' });
     try {
         if (global.MOCK_DB) {
-            const post = { _id: (Date.now() + Math.random()).toString(), authorId: req.userId, content, media: mediaUrl ? [{ url: mediaUrl }] : [], createdAt: new Date(), deleted: false };
+            const post = { _id: (Date.now() + Math.random()).toString(), authorId: req.userId, content, media: mediaArray, createdAt: new Date(), deleted: false };
             global.__mockPosts.unshift(post);
             return res.status(201).json(post);
         }
-        const post = await Post.create({ authorId: req.userId, content, media: mediaUrl ? [{ url: mediaUrl }] : [] });
+        const post = await Post.create({ authorId: req.userId, content, media: mediaArray });
         res.status(201).json(post);
     } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
@@ -55,6 +69,8 @@ router.delete('/:id', authMiddleware, async (req, res) => {
             global.__mockPosts.splice(idx, 1);
             return res.json({ ok: true });
         }
+        // validate id before querying DB to avoid Mongoose CastError
+        if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: 'Invalid id' });
         const post = await Post.findById(id);
         if (!post) return res.status(404).json({ error: 'Not found' });
         if (post.authorId.toString() !== req.userId) return res.status(403).json({ error: 'Forbidden' });
@@ -68,8 +84,11 @@ router.delete('/:id', authMiddleware, async (req, res) => {
 router.patch('/:id', authMiddleware, async (req, res) => {
     try {
         const id = req.params.id;
-        const { content, mediaUrl } = req.body;
-        if ((!content || content.trim() === '') && !mediaUrl) return res.status(400).json({ error: 'Empty post not allowed' });
+        const { content, mediaUrl, mediaUrls } = req.body;
+        const mediaArray = [];
+        if (mediaUrl) mediaArray.push({ url: mediaUrl });
+        if (Array.isArray(mediaUrls)) mediaUrls.forEach(u => { if (u) mediaArray.push({ url: u }); });
+        if ((!content || content.trim() === '') && mediaArray.length === 0) return res.status(400).json({ error: 'Empty post not allowed' });
 
         if (global.MOCK_DB) {
             const idx = global.__mockPosts.findIndex(p => p._id === id);
@@ -77,60 +96,73 @@ router.patch('/:id', authMiddleware, async (req, res) => {
             const post = global.__mockPosts[idx];
             if (post.authorId !== req.userId) return res.status(403).json({ error: 'Forbidden' });
             post.content = content;
-            if (mediaUrl) post.media = [{ url: mediaUrl }];
+            if (mediaArray.length) post.media = mediaArray;
             post.updatedAt = new Date();
             global.__mockPosts[idx] = post;
             return res.json(post);
         }
 
+        // validate id to prevent Mongoose CastError
+        if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: 'Invalid id' });
+
         const post = await Post.findById(id);
         if (!post) return res.status(404).json({ error: 'Not found' });
         if (post.authorId.toString() !== req.userId) return res.status(403).json({ error: 'Forbidden' });
         post.content = content;
-        if (mediaUrl) post.media = [{ url: mediaUrl }];
+        if (mediaArray.length) post.media = mediaArray;
         post.updatedAt = new Date();
         await post.save();
         res.json(post);
     } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
 
-router.post('/media', authMiddleware, upload.single('file'), async (req, res) => {
-    if (!req.file) return res.status(400).json({ error: 'No file' });
-    const url = `/uploads/${req.file.filename}`;
-    res.json({ url });
-});
-
-router.get('/:id', async (req, res) => {
+// Accept single file under 'file' OR multiple files under 'files[]' or 'files'
+router.post('/media', authMiddleware, upload.any(), async (req, res) => {
     try {
-        if (global.MOCK_DB) {
-            const post = global.__mockPosts.find(p => p._id === req.params.id);
-            if (!post) return res.status(404).json({ error: 'Not found' });
-            return res.json(post);
-        }
-        const post = await Post.findById(req.params.id);
-        if (!post) return res.status(404).json({ error: 'Not found' });
-        res.json(post);
-    } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+        const files = req.files || (req.file ? [req.file] : []);
+        if (!files || files.length === 0) return res.status(400).json({ error: 'No file' });
+        const urls = files.map(f => `/uploads/${f.filename}`);
+        // return array of urls for client convenience
+        return res.json({ urls });
+    } catch (err) { console.error(err); return res.status(500).json({ error: 'Server error' }); }
 });
 
 // GET /api/posts/stories - list recent stories across users
 router.get('/stories', async (req, res) => {
     try {
+        const cutoff = Date.now() - (24 * 60 * 60 * 1000);
         if (global.MOCK_DB) {
             const users = global.__mockUsers || [];
             const stories = [];
             users.forEach(u => {
-                (u.stories || []).forEach(s => stories.push({ author: { displayName: u.displayName, avatarUrl: u.avatarUrl, _id: u._id }, url: s.url, createdAt: s.createdAt }));
+                (u.stories || []).forEach(s => { const time = new Date(s.createdAt).getTime(); if (time >= cutoff) stories.push({ author: { displayName: u.displayName, avatarUrl: u.avatarUrl, _id: u._id }, url: s.url, createdAt: s.createdAt }); });
             });
             stories.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
             return res.json(stories.slice(0, 50));
         }
-        // for DB-backed users, fetch users with non-empty stories
+        // for DB-backed users, fetch users with non-empty stories and filter by createdAt
         const users = await User.find({ 'stories.0': { $exists: true } }).select('displayName avatarUrl stories').lean();
         const stories = [];
-        users.forEach(u => { (u.stories || []).forEach(s => stories.push({ author: { displayName: u.displayName, avatarUrl: u.avatarUrl, _id: u._id }, url: s.url, createdAt: s.createdAt })); });
+        users.forEach(u => { (u.stories || []).forEach(s => { const time = new Date(s.createdAt).getTime(); if (time >= cutoff) stories.push({ author: { displayName: u.displayName, avatarUrl: u.avatarUrl, _id: u._id }, url: s.url, createdAt: s.createdAt }); }); });
         stories.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         res.json(stories.slice(0, 50));
+    } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+});
+
+// GET /api/posts/:id - get single post
+router.get('/:id', async (req, res) => {
+    try {
+        const id = req.params.id;
+        if (global.MOCK_DB) {
+            const post = global.__mockPosts.find(p => p._id === id);
+            if (!post) return res.status(404).json({ error: 'Not found' });
+            return res.json(post);
+        }
+        // validate ObjectId to avoid Mongoose CastError when a non-id string (eg 'stories') hits this route
+        if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: 'Invalid id' });
+        const post = await Post.findById(id);
+        if (!post) return res.status(404).json({ error: 'Not found' });
+        res.json(post);
     } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
 

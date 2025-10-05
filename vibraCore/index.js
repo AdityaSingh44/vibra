@@ -6,6 +6,7 @@ const path = require('path');
 
 const authRoutes = require('./routes/auth');
 const postRoutes = require('./routes/posts');
+const User = require('./models/User');
 
 const app = express();
 app.use(cors());
@@ -35,3 +36,29 @@ mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopol
         global.__mockPosts = global.__mockPosts || [];
         app.listen(PORT, () => console.log('Server started on', PORT, '(MOCK_DB)'));
     });
+
+// periodic cleanup for expired stories (older than STORY_TTL_HOURS hours)
+const STORY_TTL_HOURS = parseInt(process.env.STORY_TTL_HOURS || '24', 10);
+const STORY_TTL_MS = STORY_TTL_HOURS * 60 * 60 * 1000;
+async function cleanupStories() {
+    try {
+        const cutoff = new Date(Date.now() - STORY_TTL_MS);
+        if (global.MOCK_DB) {
+            global.__mockUsers = global.__mockUsers || [];
+            global.__mockUsers.forEach(u => {
+                u.stories = (u.stories || []).filter(s => {
+                    try { return new Date(s.createdAt).getTime() >= cutoff.getTime(); } catch (e) { return false }
+                });
+            });
+            return;
+        }
+        // for DB-backed users, pull old stories
+        await User.updateMany({}, { $pull: { stories: { createdAt: { $lt: cutoff } } } }).exec();
+    } catch (err) {
+        console.error('cleanupStories error', err && err.message ? err.message : err);
+    }
+}
+
+// run cleanup once at startup and then every 30 minutes
+cleanupStories().catch(() => { });
+setInterval(cleanupStories, 1000 * 60 * 30);
