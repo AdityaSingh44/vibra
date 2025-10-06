@@ -23,7 +23,12 @@ const server = http.createServer(app);
 
 setupSocket(server);
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://root:root@completecoding.qy8jdg8.mongodb.net/taru?retryWrites=true&w=majority&appName=CompleteCoding'
+// Use MONGODB_URI from environment (.env). Do NOT hard-code credentials in source.
+const MONGODB_URI = process.env.MONGODB_URI;
+if (!MONGODB_URI) {
+    console.error('Missing required environment variable: MONGODB_URI. Please set it in your .env or environment before starting the server.');
+    process.exit(1);
+}
 
 mongoose.connect(MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
     .then(() => console.log('Connected to MongoDB'))
